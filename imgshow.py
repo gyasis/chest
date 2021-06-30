@@ -21,6 +21,16 @@ from matplotlib import pyplot as plt
 
 # create figure 
 fig = plt.figure(figsize=(20, 40)) 
+import matplotlib.patches as patches
+
+def interest_area():
+    
+    # later get index for coordinates
+    # Create a Rectangle patch
+    rect = patches.Rectangle((50, 100), 40, 30, linewidth=1, edgecolor='r', facecolor='none')
+
+    # Add the patch to the Axes
+    return ax.add_patch(rect)
 
 # setting values to rows and column variables 
 rows = 7
@@ -29,7 +39,7 @@ columns = 4
 path = 'data/small_collection/'
 i = 1
 for item in imagelist:
-    ds = dcmread(path+item)
+    ds = dcmread(item)
     # `arr` is a numpy.ndarray
     arr = ds.pixel_array
 
@@ -42,12 +52,30 @@ for item in imagelist:
 
 
 # %%
-contents = dcmread(path+imagelist[0])
+contents = dcmread(imagelist[0])
 print(contents)
 # %%
 fig2 = plt.figure(figsize=(30,60))
 arr = contents.pixel_array
 plt.imshow(arr, cmap="gray")
+
+
+# %%
+def interest_area():
+    
+    # later get index for coordinates
+    # Create a Rectangle patch
+    rect = patches.Rectangle((50, 100), 40, 30, linewidth=1, edgecolor='r', facecolor='none')
+
+    # Add the patch to the Axes
+    return fig2.add_patch(rect)
+
+fig2 = plt.figure(figsize=(30,60))
+interest_area()
+
+
+plt.imshow(arr, cmap='gray')
+
 # %%
 contents.Rows
 # %%
@@ -61,4 +89,3 @@ import pandas as pd
 
 df = pd.read_csv('data/train.csv')
 df.head(10)
-# %%

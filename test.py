@@ -20,3 +20,17 @@ plt.show()
 # %%
 os.getcwd()
 # %%
+
+
+import sys
+sys.path.append("/home/gyasis/Public/GD/Google Drive/Collection/ds-toolkit/custom_modules/")
+import precheck
+# %%
+precheck.precheck('/home/gyasis/Public/GD/Google Drive/Collection/playground/audio')
+# %%
+import icecream as ic
+# %%
+import glob
+# %%
+glob.glob('/home/gyasis/Public/GD/Google Drive/Collection/playground/covid')
+# %%
