@@ -154,8 +154,8 @@ num_items = len(ChestData)
 num_train = round(num_items * 0.7)
 num_val = num_items - num_train
 train_ds, val_ds = random_split(ChestData, [num_train, num_val])
-train_dataloader = DataLoader(train_ds, batch_size=set_batchsize, num_workers=2, pin_memory=True, shuffle=True)
-val_dataloader = DataLoader(val_ds,batch_size=set_batchsize, num_workers=2, pin_memory=True,shuffle=False)
+train_dataloader = DataLoader(train_ds, batch_size=set_batchsize, num_workers=4, pin_memory=True, shuffle=True)
+val_dataloader = DataLoader(val_ds,batch_size=set_batchsize, num_workers=4, pin_memory=True,shuffle=False)
 
 
 # %%
@@ -171,7 +171,7 @@ val_dataloader = DataLoader(val_ds,batch_size=set_batchsize, num_workers=2, pin_
 # %%
 from torchvision import models 
 import torch
-model = models.resnet18(pretrained=False)
+model = models.resnet18(pretrained=True)
 
 print(model)
 # %%
@@ -185,8 +185,8 @@ model= model.to(device)
 # %%
 df.class_id.unique()
 # %%
-# from torchinfo import summary
-# summary(model, input_size = (set_batchsize, 3 ,224,224), device = device.type)
+from torchinfo import summary
+summary(model, input_size = (set_batchsize, 3 ,224,224), device = device.type)
 # %%
 # torch.manual_seed(17)
 
