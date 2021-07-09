@@ -61,6 +61,7 @@ df.head(10)
 
 # %%
 df = df[['image_id', 'class_id']]
+torch.cuda.empty_cache() 
 # %%
 def build_path(x):
     path_ = '/media/gyasis/Drive 2/Data/vinbigdata/train/'
@@ -185,8 +186,8 @@ model= model.to(device)
 # %%
 df.class_id.unique()
 # %%
-from torchinfo import summary
-summary(model, input_size = (set_batchsize, 3 ,224,224), device = device.type)
+# from torchinfo import summary
+# summary(model, input_size = (set_batchsize, 3 ,224,224), device = device.type)
 # %%
 # torch.manual_seed(17)
 
@@ -194,11 +195,11 @@ experiment = Experiment(api_key="xleFjfKO3kcwc56tglgC1d3zU",
                         project_name="Chest Xray",log_code=True)
 # %%
 def training(model, train_dataloader, num_epochs):
-    optimizer_name = torch.optim.SGD(model.parameters(), lr=0.001)
+    optimizer_name = torch.optim.SGD(model.parameters(), lr=0.01)
     criterion = nn.CrossEntropyLoss()
     optimizer = optimizer_name
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,
-                                                    max_lr=0.001,
+                                                    max_lr=0.01,
                                                     steps_per_epoch=int(len(train_dataloader)),
                                                     epochs=num_epochs,
                                                     anneal_strategy='linear')
@@ -228,10 +229,13 @@ def training(model, train_dataloader, num_epochs):
             total_prediction += prediction.shape[0]
             running_acc = correct_prediction/total_prediction
             experiment.log_metric("Train/train_accuracy", running_acc, epoch)
-            experiment.log_metric("Loss/train",running_loss/i, epoch)
-            
-            if i % 10 == 0:
-                print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / i))
+            try:
+                experiment.log_metric("Loss/train",running_loss/i, epoch)
+            except:
+                print('div by zero')
+            if i > 2:
+                if i % 20 == 0:
+                    print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / i))
                 
         num_batches = len(train_dataloader)
         avg_loss = running_loss / num_batches
@@ -239,7 +243,7 @@ def training(model, train_dataloader, num_epochs):
         print(f'Epoch: {epoch}, Loss: {avg_loss:.2f}, Accuracy: {acc:.2f}')
         experiment.log_metric("Accuracy", acc, epoch)
         
-num_epochs = 5 
+num_epochs =11 
 training(model, train_dataloader, num_epochs)
 experiment.end
 
@@ -253,7 +257,7 @@ def inference (model, val_dataloader):
 
   # Disable gradient updates
   with torch.no_grad():
-    for data in val_dl:
+    for data in val_dataloader:
       # Get the input features and target labels, and put them on thresige GPU
       inputs = data[0].float().to(device),
       labels =  data[1].to(device)
@@ -264,17 +268,18 @@ def inference (model, val_dataloader):
 
       # Get predictions
       outputs = model(inputs)
-      # ic.ic(outputs)
+      ic.ic(outputs)
 
       # Get the predicted class with the highest score
       _, prediction = torch.max(outputs,1)
       # Count of predictions that matched the target label
       correct_prediction += (prediction == labels).sum().item()
       total_prediction += prediction.shape[0]
-      # ic.ic(prediction)
+      ic.ic(prediction)
     
   acc = correct_prediction/total_prediction
   print(f'Accuracy: {acc:.2f}, Total items: {total_prediction}')
 
 # Run inference on trained model with the validation set
-inference(myModel, val_dl)
+inference(model, val_dataloader)
+# %%
