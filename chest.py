@@ -246,22 +246,24 @@ def training(model, train_dataloader, num_epochs):
 num_epochs =11 
 training(model, train_dataloader, num_epochs)
 experiment.end
-
+# %%
+print(model)
 # %%
 # ----------------------------
 # Inference
 # ----------------------------
-def inference (model, val_dataloader):
+def inference (model, x):
   correct_prediction = 0
   total_prediction = 0
 
   # Disable gradient updates
   with torch.no_grad():
-    for data in val_dataloader:
+    for data in x:
       # Get the input features and target labels, and put them on thresige GPU
       inputs = data[0].float().to(device),
       labels =  data[1].to(device)
-
+      
+      
       # Normalize the inputs
     #   inputs_m, inputs_s = inputs.mean(), inputs.std()
     #   inputs = (inputs - inputs_m) / inputs_s
@@ -283,3 +285,18 @@ def inference (model, val_dataloader):
 # Run inference on trained model with the validation set
 inference(model, val_dataloader)
 # %%
+
+# %%
+end_ = 5
+for i,data in enumerate(val_dataloader):
+  
+    if i < end_: 
+        print(data)
+        print(type(data))
+        print(len(data))
+    else: 
+        break
+# %%
+model(inputs)
+
+## 
