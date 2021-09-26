@@ -31,23 +31,23 @@ from matplotlib import pyplot as plt
 # setting values to rows and column variables 
 # make this a function for later 
 
+# %%
+rows = 7
+columns = 4
 
-# rows = 7
-# columns = 4
+path = 'data/small_collection/'
+i = 1
+for item in imagelist:
+    ds = dcmread(item)
+    # `arr` is a numpy.ndarray
+    arr = ds.pixel_array
 
-# path = 'data/small_collection/'
-# i = 1
-# for item in imagelist:
-#     ds = dcmread(item)
-#     # `arr` is a numpy.ndarray
-#     arr = ds.pixel_array
-
-#     # Adds a subplot at the 1st position 
-#     fig.add_subplot(rows, columns, i) 
-#     # showing image 
-#     plt.imshow(arr, cmap="gray") 
-#     plt.axis('off') 
-#     i += 1
+    # Adds a subplot at the 1st position 
+    fig.add_subplot(rows, columns, i) 
+    # showing image 
+    plt.imshow(arr, cmap="gray") 
+    plt.axis('off') 
+    i += 1
 
 # %%
 # fig2 = plt.figure(figsize=(30,60))
@@ -68,8 +68,11 @@ def build_path(x):
     filetype = '.dicom'
     x = (path_+x+filetype)
     return x
+
 # %%
 import os.path
+
+
 # %%
 df['imagepath'] = df['image_id'].apply(lambda x: build_path(x))
 
@@ -81,13 +84,25 @@ df.head()
 # %%
 import torchvision
 from torchvision import transforms
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
-c_transform = nn.Sequential(transforms.Resize([256,]),
-                                  transforms.CenterCrop(224),
-                              transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)))
+c_transform = nn.Sequential(transforms.Resize([256,]), 
+                            transforms.CenterCrop(224),
+                            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)))
 ten = torchvision.transforms.ToTensor()
 
 scripted_transforms = torch.jit.script(c_transform)
+
+
+transform = A.Compose(
+    [A.Resize(width=256,height=256),
+                       A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                       A.RandomCrop(width=224, height=224),
+                       A.HorizontalFlip(p=0.5),
+                       A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
+                       A.RandomBrightnessContrast(p=0.5),
+                       ToTensorV2()]
 
 class MyDataset(Dataset):
     def __init__(self, dataset, transform=None):
@@ -146,7 +161,11 @@ class AlbumentationsDataset(Dataset):
 
 # dir(transforms)
 # %%
-ChestData = MyDataset(df, transform=c_transform)
+ChestData = MyDataset(df, transform=transform)
+
+#  %%
+ChestData_Aug = MyDataset(df, transform=transform)
+
 # %%
 set_batchsize = 128
 # %%
@@ -243,9 +262,9 @@ def training(model, train_dataloader, num_epochs):
         print(f'Epoch: {epoch}, Loss: {avg_loss:.2f}, Accuracy: {acc:.2f}')
         experiment.log_metric("Accuracy", acc, epoch)
         
-num_epochs =11 
+num_epochs = 5 
 training(model, train_dataloader, num_epochs)
-experiment.end
+experiment.end()
 # %%
 print(model)
 # %%
@@ -265,12 +284,12 @@ def inference (model, x):
       
       
       # Normalize the inputs
-    #   inputs_m, inputs_s = inputs.mean(), inputs.std()
-    #   inputs = (inputs - inputs_m) / inputs_s
+      inputs_m, inputs_s = inputs.mean(), inputs.std()
+      inputs = (inputs - inputs_m) / inputs_s
 
       # Get predictions
       outputs = model(inputs)
-      ic.ic(outputs)
+     
 
       # Get the predicted class with the highest score
       _, prediction = torch.max(outputs,1)
@@ -283,6 +302,7 @@ def inference (model, x):
   print(f'Accuracy: {acc:.2f}, Total items: {total_prediction}')
 
 # Run inference on trained model with the validation set
+
 inference(model, val_dataloader)
 # %%
 
@@ -291,7 +311,7 @@ end_ = 5
 for i,data in enumerate(val_dataloader):
   
     if i < end_: 
-        print(data)
+        print(data[0])
         print(type(data))
         print(len(data))
     else: 
@@ -300,3 +320,20 @@ for i,data in enumerate(val_dataloader):
 model(inputs)
 
 ## 
+# %%
+with torch.no_grad():
+    index = 10
+    item = val_ds[index]
+    image1 = item[0]
+    ic.ic(image1)
+    true_target = item[1]
+    ic.ic(true_target)
+    
+    prediction = model(image1.float().to(device)[None, ...])
+    
+    print(prediction)
+    
+    predicted_class=np.argmax(prediction.cpu().numpy())
+    
+    print(predicted_class)
+# %%
