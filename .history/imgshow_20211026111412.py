@@ -123,7 +123,6 @@ print(contents)
 # %%
 fig2 = plt.figure(figsize=(30,60))
 arr = contents.pixel_array
-print(arr.shape)
 plt.imshow(arr, cmap="gray")
 
 
@@ -149,12 +148,10 @@ class MyDataset(Dataset):
 # %%
 chestdata = MyDataset(df)
 # %%
-for i in range(4):
+for i in range (4):
     # print(chestdata[i])
-    # print(chestdata[i][0])
+    print(chestdata[i][0])
     plt.imshow(chestdata[i][0], cmap="gray")
-fig
-
 # %%
 
 # %%

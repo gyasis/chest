@@ -36,8 +36,6 @@ rows = 7
 columns = 4
 
 path = 'data/small_collection/'
-imagelist = df.imagepath
-fig = plt.figure(figsize=(20, 40)) 
 i = 1
 for item in imagelist:
     ds = dcmread(item)
@@ -51,41 +49,10 @@ for item in imagelist:
     plt.axis('off') 
     i += 1
 
-
-#display with matplotlib set random images from ChestData
-
-
-    
 # %%
-    
-#get random images from ChestData
-def get_random_images(x):
-    #randomly select a number of images from the dataset
-    random_images = random.sample(range(0, x), 5)
-    
-    ic.ic(random_images)
-    #get the images from the dataset
-    random_images_data = ChestData[random_images]
-    ic.ic(random_images_data)
-    #get the images from the dataset
-    # random_images_data_path = random_images_data.imagepath
-    #get the labels from the dataset
-    # random_images_data_label = random_images_data.label
-    # #get the labels from the dataset
-    # random_images_data_label_num = random_images_data.label_num
-    # #get the labels from the dataset
-    # random_images_data_label_num_onehot = random_images_data.label_num_onehot
-    
-    return random_images
-    
-    
-    
-tree = get_random_images(10)
-#get 
-# %%
-fig2 = plt.figure(figsize=(30,60))
-arr = contents.pixel_array
-plt.imshow(arr, cmap="gray")
+# fig2 = plt.figure(figsize=(30,60))
+# arr = contents.pixel_array
+# plt.imshow(arr, cmap="gray")
 
 # %%
 import pandas as pd 
@@ -127,6 +94,7 @@ ten = torchvision.transforms.ToTensor()
 
 scripted_transforms = torch.jit.script(c_transform)
 
+
 transform = A.Compose(
     [A.Resize(width=256,height=256),
                        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
@@ -134,7 +102,7 @@ transform = A.Compose(
                        A.HorizontalFlip(p=0.5),
                        A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
                        A.RandomBrightnessContrast(p=0.5),
-                       ToTensorV2()])
+                       ToTensorV2()]
 
 class MyDataset(Dataset):
     def __init__(self, dataset, transform=None):
@@ -239,13 +207,6 @@ df.class_id.unique()
 # %%
 # from torchinfo import summary
 # summary(model, input_size = (set_batchsize, 3 ,224,224), device = device.type)
-
-
-
-
-
-
-
 # %%
 # torch.manual_seed(17)
 
@@ -375,21 +336,4 @@ with torch.no_grad():
     predicted_class=np.argmax(prediction.cpu().numpy())
     
     print(predicted_class)
-# %%
-
-import copy
-def visualize_augmentations(dataset, idx=12, samples=10, cols=5):
-    dataset = copy.deepcopy(dataset)
-    dataset.transform = transform
-    rows = samples // cols
-    figure, ax = plt.subplots(nrows=rows, ncols=cols, figsize=(12, 6))
-    for i in range(samples):
-        image, _ = dataset[idx]
-        ax.ravel()[i].imshow(image[0,:,:],cmap='gray')
-        ax.ravel()[i].set_axis_off()
-    plt.tight_layout()
-    plt.show()
-# %%
-random.seed(42)
-visualize_augmentations(ChestData)
 # %%

@@ -32,24 +32,24 @@ from matplotlib import pyplot as plt
 # make this a function for later 
 
 # %%
-rows = 7
-columns = 4
+# rows = 7
+# columns = 4
 
-path = 'data/small_collection/'
-imagelist = df.imagepath
-fig = plt.figure(figsize=(20, 40)) 
-i = 1
-for item in imagelist:
-    ds = dcmread(item)
-    # `arr` is a numpy.ndarray
-    arr = ds.pixel_array
+# path = '/media/gyasis/Drive 2/Data/'
+# imagelist = df.imagepath
+# fig = plt.figure(figsize=(20, 40)) 
+# i = 1
+# for item in imagelist:
+#     ds = dcmread(item)
+#     # `arr` is a numpy.ndarray
+#     arr = ds.pixel_array
 
-    # Adds a subplot at the 1st position 
-    fig.add_subplot(rows, columns, i) 
-    # showing image 
-    plt.imshow(arr, cmap="gray") 
-    plt.axis('off') 
-    i += 1
+#     # Adds a subplot at the 1st position 
+#     fig.add_subplot(rows, columns, i) 
+#     # showing image 
+#     plt.imshow(arr, cmap="gray") 
+#     plt.axis('off') 
+#     i += 1
 
 
 #display with matplotlib set random images from ChestData
@@ -59,41 +59,41 @@ for item in imagelist:
 # %%
     
 #get random images from ChestData
-def get_random_images(x):
-    #randomly select a number of images from the dataset
-    random_images = random.sample(range(0, x), 5)
+# def get_random_images(x):
+#     #randomly select a number of images from the dataset
+#     random_images = random.sample(range(0, x), 5)
     
-    ic.ic(random_images)
-    #get the images from the dataset
-    random_images_data = ChestData[random_images]
-    ic.ic(random_images_data)
-    #get the images from the dataset
-    # random_images_data_path = random_images_data.imagepath
-    #get the labels from the dataset
-    # random_images_data_label = random_images_data.label
-    # #get the labels from the dataset
-    # random_images_data_label_num = random_images_data.label_num
-    # #get the labels from the dataset
-    # random_images_data_label_num_onehot = random_images_data.label_num_onehot
+#     ic.ic(random_images)
+#     #get the images from the dataset
+#     random_images_data = ChestData[random_images]
+#     ic.ic(random_images_data)
+#     #get the images from the dataset
+#     # random_images_data_path = random_images_data.imagepath
+#     #get the labels from the dataset
+#     # random_images_data_label = random_images_data.label
+#     # #get the labels from the dataset
+#     # random_images_data_label_num = random_images_data.label_num
+#     # #get the labels from the dataset
+#     # random_images_data_label_num_onehot = random_images_data.label_num_onehot
     
-    return random_images
+#     return random_images
     
     
     
-tree = get_random_images(10)
+# tree = get_random_images(10)
 #get 
 # %%
-fig2 = plt.figure(figsize=(30,60))
-arr = contents.pixel_array
-plt.imshow(arr, cmap="gray")
+# fig2 = plt.figure(figsize=(30,60))
+# arr = contents.pixel_array
+# plt.imshow(arr, cmap="gray")
 
 # %%
 import pandas as pd 
-df = pd.read_csv('data/train.csv')
+df = pd.read_csv('/media/gyasis/Drive 2/Data/vinbigdata/train.csv')
 df.head(10)
 
 # %%
-df = df[['image_id', 'class_id']]
+df = df[['image_id', 'class_name','class_id']]
 torch.cuda.empty_cache() 
 # %%
 def build_path(x):
@@ -105,15 +105,67 @@ def build_path(x):
 # %%
 import os.path
 
-
 # %%
 df['imagepath'] = df['image_id'].apply(lambda x: build_path(x))
-
-# %%
-df = df[['imagepath','class_id']]
-# %%
+df = df[['imagepath','class_name','class_id']]
 df.head()
+# %% 
+pd.get_dummies(df['class_name'])
+df1 = pd.get_dummies(df['class_id'].astype(str))
+# %%
 
+#mapping for later use
+disease= ["Aortic enlargement"
+,"Atelectasis"
+,"Calcification"
+,"Cardiomegaly"
+,"Consolidation"
+,"ILD"
+,"Infiltration"
+,"Lung Opacity"
+,"Nodule/Mass"
+,"Other lesion"
+,"Pleural effusion"
+,"Pleural thickening"
+,"Pneumothorax"
+,"Pulmonary fibrosis"
+,"No_finding"]
+
+#map df.class_id to disease
+# df['class_id_test'] = df['class_id'].map(lambda x: disease[x])
+df.head()
+df1.columns = df1.columns.astype(int).map(lambda x: disease[x])
+
+
+# %%
+def get_class_frequencies():
+  positive_freq = re.sum(axis=0) / re.shape[0]
+  negative_freq = np.ones(positive_freq.shape) - positive_freq
+  return positive_freq, negative_freq
+
+p,n = get_class_frequencies()
+# %%
+data = pd.DataFrame({"Class": df1.columns, "Label": "Positive", "Value": p})
+data = data.append([{"Class": df1.columns[l], "Label": "Negative", "Value": v} for l, v in enumerate(n)], ignore_index=True)
+plt.xticks(rotation=90)
+f = sns.barplot(x="Class", y="Value",hue="Label", data=data)
+# %%
+pos_weights = n
+neg_weights = p
+pos_contribution = p * pos_weights
+neg_contribution = n * neg_weights
+print(p)
+print(n)
+
+print("Weight to be added:  ",pos_contribution)
+
+
+# %%
+
+data = pd.DataFrame({"Class": df1.columns, "Label": "Positive", "Value": pos_contribution})
+data = data.append([{"Class": df1.columns[l], "Label": "Negative", "Value": v} for l, v in enumerate(neg_contribution)], ignore_index=True)
+plt.xticks(rotation=90)
+g = sns.barplot(x="Class", y="Value",hue="Label", data=data)
 # %%
 import torchvision
 from torchvision import transforms
@@ -254,7 +306,8 @@ experiment = Experiment(api_key="xleFjfKO3kcwc56tglgC1d3zU",
 # %%
 def training(model, train_dataloader, num_epochs):
     optimizer_name = torch.optim.SGD(model.parameters(), lr=0.01)
-    criterion = nn.CrossEntropyLoss()
+    # criterion = nn.CrossEntropyLoss()
+    criterion = 
     optimizer = optimizer_name
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,
                                                     max_lr=0.01,
