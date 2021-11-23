@@ -28,64 +28,6 @@ from torch.nn import init
 from pydicom import dcmread
 from matplotlib import pyplot as plt 
 
-# setting values to rows and column variables 
-# make this a function for later 
-
-# %%
-# rows = 7
-# columns = 4
-
-# path = '/media/gyasis/Drive 2/Data/'
-# imagelist = df.imagepath
-# fig = plt.figure(figsize=(20, 40)) 
-# i = 1
-# for item in imagelist:
-#     ds = dcmread(item)
-#     # `arr` is a numpy.ndarray
-#     arr = ds.pixel_array
-
-#     # Adds a subplot at the 1st position 
-#     fig.add_subplot(rows, columns, i) 
-#     # showing image 
-#     plt.imshow(arr, cmap="gray") 
-#     plt.axis('off') 
-#     i += 1
-
-
-#display with matplotlib set random images from ChestData
-
-
-    
-# %%
-    
-#get random images from ChestData
-# def get_random_images(x):
-#     #randomly select a number of images from the dataset
-#     random_images = random.sample(range(0, x), 5)
-    
-#     ic.ic(random_images)
-#     #get the images from the dataset
-#     random_images_data = ChestData[random_images]
-#     ic.ic(random_images_data)
-#     #get the images from the dataset
-#     # random_images_data_path = random_images_data.imagepath
-#     #get the labels from the dataset
-#     # random_images_data_label = random_images_data.label
-#     # #get the labels from the dataset
-#     # random_images_data_label_num = random_images_data.label_num
-#     # #get the labels from the dataset
-#     # random_images_data_label_num_onehot = random_images_data.label_num_onehot
-    
-#     return random_images
-    
-    
-    
-# tree = get_random_images(10)
-#get 
-# %%
-# fig2 = plt.figure(figsize=(30,60))
-# arr = contents.pixel_array
-# plt.imshow(arr, cmap="gray")
 
 # %%
 import pandas as pd 
@@ -109,11 +51,11 @@ import os.path
 df['imagepath'] = df['image_id'].apply(lambda x: build_path(x))
 df = df[['imagepath','class_name','class_id']]
 df.head()
+
 # %% 
 pd.get_dummies(df['class_name'])
 df1 = pd.get_dummies(df['class_id'].astype(str))
 # %%
-
 #mapping for later use
 disease= ["Aortic enlargement"
 ,"Atelectasis"
@@ -136,10 +78,10 @@ disease= ["Aortic enlargement"
 df.head()
 df1.columns = df1.columns.astype(int).map(lambda x: disease[x])
 
-
+s_array = np.array(df1)
 # %%
 def get_class_frequencies():
-  positive_freq = re.sum(axis=0) / re.shape[0]
+  positive_freq = s_array.sum(axis=0) / s_array.shape[0]
   negative_freq = np.ones(positive_freq.shape) - positive_freq
   return positive_freq, negative_freq
 
@@ -156,7 +98,6 @@ pos_contribution = p * pos_weights
 neg_contribution = n * neg_weights
 print(p)
 print(n)
-
 print("Weight to be added:  ",pos_contribution)
 
 
@@ -178,16 +119,25 @@ c_transform = nn.Sequential(transforms.Resize([256,]),
 ten = torchvision.transforms.ToTensor()
 
 scripted_transforms = torch.jit.script(c_transform)
-
+# %%
 transform = A.Compose(
-    [A.Resize(width=256,height=256),
-                       A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-                       A.RandomCrop(width=224, height=224),
+    [A.Resize(width=256,height=256, always_apply=True),
                        A.HorizontalFlip(p=0.5),
-                       A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
-                       A.RandomBrightnessContrast(p=0.5),
-                       ToTensorV2()])
-
+                       A.OneOf([
+                            A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.25),
+                            A.RandomBrightnessContrast(p=0.1, contrast_limit=0.05, brightness_limit=0.05,),
+                            A.InvertImg(p=0.02),
+                       ]),
+                       A.OneOf([
+                           A.RandomCrop(width=224, height=224, p=0.5),
+                           A.CenterCrop(width=224, height=224, p=0.5),
+                           
+                       ]),
+                       A.Resize(width=224, height=224, always_apply=True),
+                       A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                       ToTensorV2()
+                    ])
+# %%
 class MyDataset(Dataset):
     def __init__(self, dataset, transform=None):
         print('creating Dataset')
@@ -200,78 +150,53 @@ class MyDataset(Dataset):
     def __getitem__(self, index):
         ds = dcmread(self.imagearray[index])
         arr = ds.pixel_array
-        # ic.ic(arr.shape)
         arr = arr.astype('float')
-        # arr = test(arr)
-        # arr = torchvision.transforms.ToPILImage(arr)
-        
         class_id = self.df.loc[index, 'class_id']
-        # print(arr.shape)
         arr = ten(arr)
-        # print(arr.shape)
         arr = arr.expand(3, -1,-1)
-        # print(arr.shape)
         arr = scripted_transforms(arr)
-        # print(arr.shape)
-  
+        
         return arr, class_id
         
     def __len__(self):
         return self.data_len
     
-    
-    
-    
-    
 class AlbumentationsDataset(Dataset):
-    def __init__(self, dataset, transform=None):
+    def __init__(self, dataset, transform=transform):
         self.df = dataset
-        self.file_paths = np.asarray(dataset.imagepath)
-        self.labels = np.asarray(dataset.class_id)
+        self.imagearray = np.asarray(dataset.imagepath)
+        self.class_arr = np.asarray(dataset.class_id)
         self.transform = transform
+        self.data_len = len(dataset.index)
         
     def __len__(self):
-        return len(self.file_paths)
+        return self.data_len
     
     def __getitem__(self, index):
-        labels = self.df.loc[index, 'class_id']
-        file_path = self.file_paths[index]
-        ds = dcmread(file_path)
+        
+        ds = dcmread(self.imagearray[index])
+        class_id = self.df.loc[index, 'class_id']
         arr = ds.pixel_array
-        
-        return arr, labels
-        
-# %% 
+        arr = np.stack((arr,)*3, axis=-1)
+        arr = transform(image = arr)["image"]
+        return arr, class_id
 
-# dir(transforms)
 # %%
-ChestData = MyDataset(df, transform=transform)
-
+ChestData = MyDataset(df, transform=None)
 #  %%
-ChestData_Aug = MyDataset(df, transform=transform)
-
+ChestData_Aug = AlbumentationsDataset(df, transform=transform)
 # %%
 set_batchsize = 128
 # %%
 from torch.utils.data import DataLoader, Dataset, random_split
-num_items = len(ChestData)
+num_items = len(ChestData_Aug)
 num_train = round(num_items * 0.7)
 num_val = num_items - num_train
-train_ds, val_ds = random_split(ChestData, [num_train, num_val])
+train_ds, val_ds = random_split(ChestData_Aug, [num_train, num_val])
 train_dataloader = DataLoader(train_ds, batch_size=set_batchsize, num_workers=4, pin_memory=True, shuffle=True)
 val_dataloader = DataLoader(val_ds,batch_size=set_batchsize, num_workers=4, pin_memory=True,shuffle=False)
 
 
-# %%
-# end_ = 5
-# for i,data in enumerate(train_dataloader):
-  
-#     if i < end_: 
-#         print(data)
-#         print(type(data))
-#         print(len(data))
-#     else: 
-#         break
 # %%
 from torchvision import models 
 import torch
@@ -288,26 +213,59 @@ model= model.to(device)
 
 # %%
 df.class_id.unique()
-# %%
-# from torchinfo import summary
-# summary(model, input_size = (set_batchsize, 3 ,224,224), device = device.type)
-
-
-
-
-
-
 
 # %%
 # torch.manual_seed(17)
 
 experiment = Experiment(api_key="xleFjfKO3kcwc56tglgC1d3zU",
                         project_name="Chest Xray",log_code=True)
+
+# %%
+# import copy
+
+
+# def visualize_augmentations(dataset, idx=12,iterate='random', samples=9, cols=3):
+#     dataset = copy.deepcopy(dataset)
+#     dataset.transform = transform
+#     rows = samples // cols
+#     figure, ax = plt.subplots(nrows=rows, ncols=cols, figsize=(12, 12))
+    
+    
+#     for i in range(samples):
+#         rando = random.randint(0,len(dataset)-1)
+#         if (iterate=='random'):
+#             image, _ = dataset[rando]
+#             print(image.shape)
+#             ax.ravel()[i].imshow(image[:,:,0],cmap='gray')
+#             ax.ravel()[i].set_axis_off()
+#         else:
+#             image, _ = dataset[i]
+#             ax.ravel()[i].imshow(image[0,:,:],cmap='gray')
+#             ax.ravel()[i].set_axis_off()
+            
+#     plt.tight_layout()
+#     filename = 'augmented_images_' + str(rando) + '.png'
+#     plt.savefig(filename)
+#     experiment.log_image(image_data = filename) 
+#     plt.show()
+    
+    
+# # %%
+# for t in range(9):
+#     visualize_augmentations(ChestData_Aug, idx=5, samples=9, cols=3)   
+
+# # %%
+# for t in range(9):
+#     visualize_augmentations(ChestData, idx=5, samples=9,iterate='iterate', cols=3)
+# # %%
+# random.seed(42)
+# visualize_augmentations(ChestData)
+
 # %%
 def training(model, train_dataloader, num_epochs):
     optimizer_name = torch.optim.SGD(model.parameters(), lr=0.01)
     # criterion = nn.CrossEntropyLoss()
-    criterion = 
+    criterion = nn.CrossEntropyLoss(weight=torch.tensor(pos_contribution).type(torch.FloatTensor).to(device))
     optimizer = optimizer_name
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,
                                                     max_lr=0.01,
@@ -324,15 +282,12 @@ def training(model, train_dataloader, num_epochs):
         for i, data, in enumerate(tqdm(train_dataloader)):
             inputs = data[0].float().to(device)
             labels = data[1].to(device)
-            
             optimizer.zero_grad()
-            
             outputs = model(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
             scheduler.step()
-            
             running_loss += loss.item()
             _, prediction = torch.max(outputs, 1)
             
@@ -354,7 +309,7 @@ def training(model, train_dataloader, num_epochs):
         print(f'Epoch: {epoch}, Loss: {avg_loss:.2f}, Accuracy: {acc:.2f}')
         experiment.log_metric("Accuracy", acc, epoch)
         
-num_epochs = 5 
+num_epochs = 1 
 training(model, train_dataloader, num_epochs)
 experiment.end()
 # %%
@@ -397,47 +352,15 @@ def inference (model, x):
 
 inference(model, val_dataloader)
 # %%
-
-# %%
-end_ = 5
-for i,data in enumerate(val_dataloader):
-  
-    if i < end_: 
-        print(data[0])
-        print(type(data))
-        print(len(data))
-    else: 
-        break
-# %%
-model(inputs)
-
-## 
-# %%
-with torch.no_grad():
-    index = 10
-    item = val_ds[index]
-    image1 = item[0]
-    ic.ic(image1)
-    true_target = item[1]
-    ic.ic(true_target)
-    
-    prediction = model(image1.float().to(device)[None, ...])
-    
-    print(prediction)
-    
-    predicted_class=np.argmax(prediction.cpu().numpy())
-    
-    print(predicted_class)
-# %%
-
 import copy
-def visualize_augmentations(dataset, idx=12, samples=10, cols=5):
+def visualize_augmentations(dataset, idx=12, samples=9, cols=3):
     dataset = copy.deepcopy(dataset)
     dataset.transform = transform
     rows = samples // cols
-    figure, ax = plt.subplots(nrows=rows, ncols=cols, figsize=(12, 6))
+    figure, ax = plt.subplots(nrows=rows, ncols=cols, figsize=(12, 12))
     for i in range(samples):
-        image, _ = dataset[idx]
+        image, _ = dataset[i]
+       
         ax.ravel()[i].imshow(image[0,:,:],cmap='gray')
         ax.ravel()[i].set_axis_off()
     plt.tight_layout()
@@ -446,3 +369,19 @@ def visualize_augmentations(dataset, idx=12, samples=10, cols=5):
 random.seed(42)
 visualize_augmentations(ChestData)
 # %%
+ds = dcmread(df.imagepath[5])
+arr = ds.pixel_array
+# arr = arr.astype('float')
+arr = np.stack((arr,)*3, axis=-1)
+
+print(arr.shape)
+print(arr.dtype)
+
+transformed = transform(image = arr)["image"]
+
+def visualize(image):
+    plt.figure(figsize=(10, 10))
+    plt.axis('off')
+    plt.imshow(image)
+    
+visualize(transformed)
