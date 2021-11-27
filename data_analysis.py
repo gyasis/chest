@@ -116,8 +116,6 @@ g1.set_title("Train set")
 g1.set_xticklabels(disease)
 # %%
 
-g = sns.histplot(x=y_train, order=disease)
-plt.xticks(list(i for i in range(15)),disease, rotation=90)
 # %%
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 # %%
@@ -189,7 +187,7 @@ def prepare_class_split(dataframe, target="class_name", p_split=0.30, test_targe
 
     if out == "Augment??":
       outcomes_df.iat[i,0] = outcomes_df.Split[i] * 0.80
-      print(outcomes_df.iat[i,1])
+      # print(outcomes_df.iat[i,1])
     elif out == "Weights/Augment/Split!!":
       outcomes_df.iat[i, 0] = math.floor(outcomes_df.Set_Number[i]*0.50)
       # outcomes_df = outcomes_df.append(outcomes_df.at[i,"Set Number"] == math.floor(temp/0.5))
@@ -199,57 +197,72 @@ def prepare_class_split(dataframe, target="class_name", p_split=0.30, test_targe
     else:
       print("Error")
   
-  
+  est_d
   if helpers == "dataframe":
     return outcomes_df
-  
-            # %%
+
 
 # %%
-#use proposed_split to split the dataframe
+test = prepare_class_split(df, target="class_name", p_split=0.20, test_target_split=0.50, verbose=True, helpers="dataframe")
+df['class'] = df['class_id'].apply(lambda x:disease[x])
 
-def custom_split(dataframe,lable):
-  class_list = list(dataframe[target].unique()
-  for index, row in dataframe.iterrows():
-    if row[lable] == class_list:
-      print(row[lable])
-      # if row[lable] == "OK!!":
-      #   pass
-      # else:
-        # dataframe.drop(index, inplace=True)
-# %%
-custom_split(df,"class_name","OK!!")
-
-
-
-
-# %% 
-df
-# %%
-for index, row in df.iterrows():
-  print(index)
-  print(row)
-
-# %%
-count =113
-for index, row in df.iterrows():
-  
-  if row["class_name"] == "Pneumothorax" and count > 0:
-    print(row["class_name"])
-    df.drop(index, inplace=True)
-    count -=1
 # %%
 def custom_split(dataframe1,dataframe2):
+  dataframe2 = dataframe2.copy(deep=True)
+  dataframe2 = dataframe2.sample(frac=1)
+  dataframe3 = dataframe2.copy(deep=True)
+  
+  test_idx = []
   temp = list(dataframe1.index)
+  print(temp)
   for i, class_ in enumerate(temp):
     total = dataframe1.iat[i, 0]
+    print(total)
     for index, row in dataframe2.iterrows():
       if row["class_name"] == class_ and total > 0 :
         total -= 1
-        df.drop(index, inplace=True)
+        test_idx.append(index)
+        dataframe2.drop(index, inplace=True)
         
-      else:
-        print("Finished ", class_)
+        # print("drop")
+    print("Finished ", class_)
+  dataframe3 = dataframe3.loc[dataframe3.index[test_idx]]
+  dataframe2 = dataframe2.sample(frac=1)
+  dataframe3 = dataframe3.sample(frac=1)
+  return dataframe2, dataframe3
 # %%
-custom_split(test, df)
+train_df, test_df= custom_split(test, df)
 # %%
+train_df.head()
+# %%
+train_df["class_name"].value_counts()
+
+#%%
+test_df.head()
+
+# %%
+test_df["class_name"].value_counts()
+
+# %%
+train_dummies = pd.get_dummies(train_df.class_name)
+test_dummies = pd.get_dummies(test_df.class_name)
+
+
+
+
+# %%
+train_dummies.head(20)
+
+# %%
+f, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+ax1.tick_params(axis='x', labelrotation=90)
+ax2.tick_params(axis='x', labelrotation=90)
+g1 = sns.histplot(train_df, ax=ax1)
+g2= sns.histplot(test_df, ax=ax2)
+g2.set_title("Test set")
+g1.set_title("Train set")
+# g1.set_xticklabels(disease)
+
+
+# %% 
+#  random select from numpy array
