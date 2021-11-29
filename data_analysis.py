@@ -17,9 +17,10 @@ df.head(10)
 
 # %%
 import seaborn as sns
+plt.xticks(rotation=90)
 sns.set_theme(style="dark")
 sns.histplot(x=df.class_name, data=df)
-plt.xticks(rotation=90)
+
 # %%
 df=df[['class_name','class_id','image_id']]
 # %%
@@ -95,9 +96,7 @@ g = sns.barplot(x="Class", y="Value",hue="Label", data=data)
 
 from sklearn.model_selection import train_test_split
 
-
 X, y = df.imagepath, df.class_id
-
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 # %%
 print(f"Numbers of train instances by class: {np.bincount(y_train)}")
@@ -111,11 +110,6 @@ g2= sns.histplot(x=(list(map(lambda y_test: disease[y_test], y_test))), ax=ax2, 
 g2.set_title("Test set")
 g1.set_title("Train set")
 
-# g1.set_xlabel("Class")
-# g2.set_xlabel("Class")
-g1.set_xticklabels(disease)
-# %%
-
 # %%
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 # %%
@@ -127,10 +121,9 @@ proposed_split = (len(df)*0.20)
 # %%
 proposed_split / len(df.class_id.unique())
 # %%
-
 print(len(df.class_id.unique()))
 # %%
-def prepare_class_split(dataframe, target="class_name", p_split=0.30, test_target_split=0.50, verbose=True, helpers="dataframe"):
+def prepare_class_split(dataframe, target="class_name", p_split=0.30, test_target_split=0.50, verbose=False, helpers="dataframe"):
   dataframe = dataframe.copy()
   df_len = len(dataframe)
   class_amount = len(dataframe[target].unique())
@@ -197,7 +190,7 @@ def prepare_class_split(dataframe, target="class_name", p_split=0.30, test_targe
     else:
       print("Error")
   
-  est_d
+  
   if helpers == "dataframe":
     return outcomes_df
 
@@ -209,8 +202,9 @@ df['class'] = df['class_id'].apply(lambda x:disease[x])
 # %%
 def custom_split(dataframe1,dataframe2):
   dataframe2 = dataframe2.copy(deep=True)
-  dataframe2 = dataframe2.sample(frac=1)
   dataframe3 = dataframe2.copy(deep=True)
+  dataframe2 = dataframe2.sample(frac=1)
+  
   
   test_idx = []
   temp = list(dataframe1.index)
@@ -226,9 +220,13 @@ def custom_split(dataframe1,dataframe2):
         
         # print("drop")
     print("Finished ", class_)
+    
+  print(len(dataframe2))
+  
   dataframe3 = dataframe3.loc[dataframe3.index[test_idx]]
   dataframe2 = dataframe2.sample(frac=1)
   dataframe3 = dataframe3.sample(frac=1)
+  print(len(dataframe3))
   return dataframe2, dataframe3
 # %%
 train_df, test_df= custom_split(test, df)
@@ -247,9 +245,6 @@ test_df["class_name"].value_counts()
 train_dummies = pd.get_dummies(train_df.class_name)
 test_dummies = pd.get_dummies(test_df.class_name)
 
-
-
-
 # %%
 train_dummies.head(20)
 
@@ -265,4 +260,40 @@ g1.set_title("Train set")
 
 
 # %% 
-#  random select from numpy array
+def get_class_frequencies(dataframe,target):
+  try:
+    dataframe = pd.get_dummies(dataframe[target].astype(str))
+  except:
+    dataframe = pd.get_dummies(dataframe[target])
+    
+  f, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+  sample_array = np.array(dataframe)
+  positive_freq = sample_array.sum(axis=0) / sample_array.shape[0]
+  negative_freq = np.ones(positive_freq.shape) - positive_freq
+  data = pd.DataFrame({"Class": dataframe.columns, "Label": "Positive", "Value": positive_freq})
+  data = data.append([{"Class": dataframe.columns[l], "Label": "Negative", "Value": v} for l, v in enumerate(negative_freq)], ignore_index=True)
+  plt.xticks(rotation=90)
+  sns.barplot(x="Class", y="Value",hue="Label", data=data, ax=ax1)
+  pos_weights = negative_freq
+  neg_weights = positive_freq
+  pos_contribution = positive_freq * pos_weights
+  neg_contribution = negative_freq * neg_weights
+
+  # print("Weight to be added:  ",pos_contribution)
+  
+  data1 = pd.DataFrame({"Class": dataframe.columns, "Label": "Positive", "Value": pos_contribution})
+  data1 = data1.append([{"Class": dataframe.columns[l], "Label": "Negative", "Value": v} for l, v in enumerate(neg_contribution)], ignore_index=True)
+  ax1.tick_params(axis='x', labelrotation=90)
+  ax2.tick_params(axis='x', labelrotation=90)
+  sns.barplot(x="Class", y="Value",hue="Label", data=data1, ax=ax2)
+  
+  return pos_contribution
+
+
+# %%
+weights = get_class_frequencies(df, "class_name")
+# %%
+
+X, y = test_df.imagepath, test_df.class_id
+X_valid, X_test, y_valid, y_test = train_test_split(X, y, test_size=0.5, random_state=42, stratify=y)
+# %%

@@ -7,28 +7,30 @@ except:
 
 
 # %%
+
 import os
-import glob
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import comet_ml
 from comet_ml import Experiment
 import icecream as ic
-from IPython.display import Audio, display
+from IPython.display import  display
 from torch.utils.data import DataLoader, Dataset, random_split
 import torch
-torch.cuda._initialized = True
-import time
-import math, random
+import random
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import init
 from pydicom import dcmread
-from matplotlib import pyplot as plt 
 
 
+torch.cuda._initialized = True
+
+# %%
+
+experiment = Experiment(api_key="xleFjfKO3kcwc56tglgC1d3zU",
+                        project_name="Chest Xray",log_code=True)
 # %%
 import pandas as pd 
 df = pd.read_csv('/media/gyasis/Drive 2/Data/vinbigdata/train.csv')
@@ -91,6 +93,8 @@ data = pd.DataFrame({"Class": df1.columns, "Label": "Positive", "Value": p})
 data = data.append([{"Class": df1.columns[l], "Label": "Negative", "Value": v} for l, v in enumerate(n)], ignore_index=True)
 plt.xticks(rotation=90)
 f = sns.barplot(x="Class", y="Value",hue="Label", data=data)
+plt.savefig("skewness.png")
+experiment.log_image(image_data = 'skewness.png')
 # %%
 pos_weights = n
 neg_weights = p
@@ -107,6 +111,8 @@ data = pd.DataFrame({"Class": df1.columns, "Label": "Positive", "Value": pos_con
 data = data.append([{"Class": df1.columns[l], "Label": "Negative", "Value": v} for l, v in enumerate(neg_contribution)], ignore_index=True)
 plt.xticks(rotation=90)
 g = sns.barplot(x="Class", y="Value",hue="Label", data=data)
+plt.savefig("Balanced.png")
+experiment.log_image(image_data = "Balanced.png")
 # %%
 import torchvision
 from torchvision import transforms
@@ -137,6 +143,25 @@ transform = A.Compose(
                        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
                        ToTensorV2()
                     ])
+
+W_o_ten_transform = A.Compose(
+    [A.Resize(width=256,height=256, always_apply=True),
+                       A.HorizontalFlip(p=0.5),
+                       A.OneOf([
+                            A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.25),
+                            A.RandomBrightnessContrast(p=0.1, contrast_limit=0.05, brightness_limit=0.05,),
+                            A.InvertImg(p=0.02),
+                       ]),
+                       A.OneOf([
+                           A.RandomCrop(width=224, height=224, p=0.5),
+                           A.CenterCrop(width=224, height=224, p=0.5),
+                           
+                       ]),
+                       A.Resize(width=224, height=224, always_apply=True),
+                       A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                    #    ToTensorV2()
+                    ])
+
 # %%
 class MyDataset(Dataset):
     def __init__(self, dataset, transform=None):
@@ -180,11 +205,34 @@ class AlbumentationsDataset(Dataset):
         arr = np.stack((arr,)*3, axis=-1)
         arr = transform(image = arr)["image"]
         return arr, class_id
+class VisualDataset(Dataset):
+    def __init__(self, dataset, transform=transform):
+        self.df = dataset
+        self.imagearray = np.asarray(dataset.imagepath)
+        self.class_arr = np.asarray(dataset.class_id)
+        self.transform = transform
+        self.data_len = len(dataset.index)
+        
+    def __len__(self):
+        return self.data_len
+    
+    def __getitem__(self, index):
+        
+        ds = dcmread(self.imagearray[index])
+        class_id = self.df.loc[index, 'class_id']
+        arr = ds.pixel_array
+        arr = np.stack((arr,)*3, axis=-1)
+        arr = W_o_ten_transform(image = arr)["image"]
+        return arr, class_id
+    
 
 # %%
 ChestData = MyDataset(df, transform=None)
+
+train_dataloader = DataLoader(train_ds, batch_size=128)
 #  %%
 ChestData_Aug = AlbumentationsDataset(df, transform=transform)
+ChestData_Visual = VisualDataset(df, transform=transform)
 # %%
 set_batchsize = 128
 # %%
@@ -217,46 +265,45 @@ df.class_id.unique()
 # %%
 # torch.manual_seed(17)
 
-experiment = Experiment(api_key="xleFjfKO3kcwc56tglgC1d3zU",
-                        project_name="Chest Xray",log_code=True)
+
 
 # %%
-# import copy
+import copy
 
 
-# def visualize_augmentations(dataset, idx=12,iterate='random', samples=9, cols=3):
-#     dataset = copy.deepcopy(dataset)
-#     dataset.transform = transform
-#     rows = samples // cols
-#     figure, ax = plt.subplots(nrows=rows, ncols=cols, figsize=(12, 12))
+def visualize_augmentations(dataset, idx=12,iterate='random', samples=9, cols=3):
+    dataset = copy.deepcopy(dataset)
+    dataset.transform = transform
+    rows = samples // cols
+    figure, ax = plt.subplots(nrows=rows, ncols=cols, figsize=(12, 12))
     
     
-#     for i in range(samples):
-#         rando = random.randint(0,len(dataset)-1)
-#         if (iterate=='random'):
-#             image, _ = dataset[rando]
-#             print(image.shape)
-#             ax.ravel()[i].imshow(image[:,:,0],cmap='gray')
-#             ax.ravel()[i].set_axis_off()
-#         else:
-#             image, _ = dataset[i]
-#             ax.ravel()[i].imshow(image[0,:,:],cmap='gray')
-#             ax.ravel()[i].set_axis_off()
+    for i in range(samples):
+        rando = random.randint(0,len(dataset)-1)
+        if (iterate=='random'):
+            image, _ = dataset[rando]
+           
+            ax.ravel()[i].imshow(image[:,:,0],cmap='gray')
+            ax.ravel()[i].set_axis_off()
+        else:
+            image, _ = dataset[i]
+            ax.ravel()[i].imshow(image[0,:,:],cmap='gray')
+            ax.ravel()[i].set_axis_off()
             
-#     plt.tight_layout()
-#     filename = 'augmented_images_' + str(rando) + '.png'
-#     plt.savefig(filename)
-#     experiment.log_image(image_data = filename) 
-#     plt.show()
+    plt.tight_layout()
+    filename = 'augmented_images_' + str(rando) + '.png'
+    plt.savefig(filename)
+    experiment.log_image(image_data = filename) 
+    plt.show()
     
     
-# # %%
-# for t in range(9):
-#     visualize_augmentations(ChestData_Aug, idx=5, samples=9, cols=3)   
+# %%
+for t in range(9):
+    visualize_augmentations(ChestData_Visual, idx=5, samples=9, cols=3)   
 
-# # %%
-# for t in range(9):
-#     visualize_augmentations(ChestData, idx=5, samples=9,iterate='iterate', cols=3)
+# %%
+for t in range(9):
+    visualize_augmentations(ChestData, idx=5, samples=9,iterate='iterate', cols=3)
 # # %%
 # random.seed(42)
 # visualize_augmentations(ChestData)
@@ -309,7 +356,8 @@ def training(model, train_dataloader, num_epochs):
         print(f'Epoch: {epoch}, Loss: {avg_loss:.2f}, Accuracy: {acc:.2f}')
         experiment.log_metric("Accuracy", acc, epoch)
         
-num_epochs = 1 
+num_epochs = 6 
+
 training(model, train_dataloader, num_epochs)
 experiment.end()
 # %%
@@ -385,3 +433,39 @@ def visualize(image):
     plt.imshow(image)
     
 visualize(transformed)
+
+def training(model, train_dataloader, num_epochs):
+    optimizer_name = torch.optim.SGD(model.parameters(), lr=0.01)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optimizer_name
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,
+                                                    max_lr=0.01,
+                                                    epochs=num_epochs,
+                                                    anneal_strategy='linear')
+    
+    for epoch in tqdm(range(num_epochs)):
+        running_loss = 0.0
+        correct_prediction = 0
+        total_prediction = 0
+        for i, data, in enumerate(tqdm(train_dataloader)):
+            inputs = data[0].float().to(device)
+            labels = data[1].to(device)
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+            running_loss += loss.item()
+            _, prediction = torch.max(outputs, 1)
+            correct_prediction += (prediction == labels).sum().item()
+            total_prediction += prediction.shape[0]
+            running_acc = correct_prediction/total_prediction
+                
+        num_batches = len(train_dataloader)
+        avg_loss = running_loss / num_batches
+        acc = correct_prediction/total_prediction
+       
+num_epochs = 6 
+
+training(model, train_dataloader, num_epochs)
