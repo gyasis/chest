@@ -12,3 +12,6 @@ import autoPyTorch
 # %%
 from autoPyTorch.pipeline.image_classification import ImageClassificationPipeline
 # %%
+#count number of ones in a list of numbers 
+def count_ones(list_of_numbers):
+    np.sum(list_of_numbers == 1)
