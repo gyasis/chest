@@ -1,9 +1,9 @@
 # %%
 
-try:
-  %load_ext autotime
-except:
-  print("Console warning-- Autotime is jupyter platform specific")
+# try:
+#   %load_ext autotime
+# except:
+#   print("Console warning-- Autotime is jupyter platform specific")
 
 # %%
 import math
@@ -297,5 +297,8 @@ weights = get_class_frequencies(df, "class_name")
 X, y = test_df.imagepath, test_df.class_id
 X_valid, X_test, y_valid, y_test = train_test_split(X, y, test_size=0.5, random_state=42, stratify=y)
 # %%
-
-
+Valid_df = pd.concat([X_valid, y_valid], axis=1, join='inner')
+Test_df = pd.concat([X_test, y_test], axis=1, join='inner')
+Train_df = train_df[['imagepath', 'class_id']]
+# %%
+#run python file and get variables for train and test
