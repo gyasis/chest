@@ -321,6 +321,7 @@ import torch.nn.functional as F
 from torch.nn import init
 from pydicom import dcmread
 
+torch.manual_seed(45)
 
 torch.cuda._initialized = True
 
@@ -755,3 +756,45 @@ Train
   Initialize
   Tune
 Validate
+
+
+# %%
+#select random rows with condition of class_id then return list of index of rows
+
+def select_samples(df, class_id,n):
+  random_rows = df.loc[df['class_id'] == class_id].sample(n=n)
+  return random_rows.index.tolist()
+
+def fast_random_sampling(df, class_id, n):
+  df_class = df.loc[df['class_id'] == class_id]
+
+
+  return np.random.default_rng().choice(df_class.index, n, replace=False).tolist()
+
+# %%
+#run fast_rando_sampling on all unique class_id's and combine the list of index
+
+def get_n_samples(dataframe, n):
+  class_ids = dataframe['class_id'].unique().tolist()
+  
+  print(class_ids)
+  samples = []
+  for i in class_ids:
+    print(i)
+    samples.extend(fast_random_sampling(dataframe, i, n))
+    print(len(samples))
+    
+  target_list = dataframe.index[[samples]]
+  print(f"this is the length of samples: {len(samples)}")
+
+  d2 = df.copy(deep=True)
+  d3 = df.copy(deep=True)
+  train_data = d2.drop(target_list, inplace=False)
+  test_data = df.loc[df.index[target_list]]
+  
+  return train_data, test_data
+# %%
+  dataframe2 = dataframe2.copy(deep=True)
+  dataframe3 = dataframe2.copy(deep=True)
+  # get sum of unique class_id's
+  def class_count()
