@@ -37,7 +37,7 @@ df.head()
 pd.get_dummies(df['class_name'])
 
 # %%
-df1 = pd.get_dummies(df['class_id'].astype(str))
+df1 = pd.get_dummies(df['class_id'])
 # %%
 
 #mapping for later use
@@ -60,12 +60,13 @@ disease= ["Aortic enlargement"
 #map df.class_id to disease
 # df['class_id_test'] = df['class_id'].map(lambda x: disease[x])
 df.head()
-df1.columns = df1.columns.astype("int").map(lambda x: disease[x])
+# df1.columns = df1.columns.astype("int").map(lambda x: disease[x])
 sample_array = np.array(df1)
 
 # %%
 def get_class_frequencies():
   positive_freq = sample_array.sum(axis=0) / sample_array.shape[0]
+  print(positive_freq)
   negative_freq = np.ones(positive_freq.shape) - positive_freq
   return positive_freq, negative_freq
 
@@ -96,26 +97,33 @@ g = sns.barplot(x="Class", y="Value",hue="Label", data=data)
 
 # %%
 from sklearn.utils import compute_class_weight, compute_sample_weight
-x  = compute_class_weight("balanced",df.class_name.unique(),df.class_name)
-x2 = compute_sample_weight('balanced', y = df.class_id)
+x  = compute_class_weight("balanced",sorted(df.class_id.unique()),df.class_id)
+# x2 = compute_sample_weight('balanced', y = df.class_id)
 
 # %%
 # show class weight
 for i, proposed_weights in enumerate(x):
     # print(f"{df.class_name.unique()[i]}: {x[i]}")
-    print('{:<25s}: {:<}'.format(df.class_name.unique()[i], x[i]))
+    print('{:<25s}: {:<}'.format(disease[i], x[i]))
     
 # build dataframe with list of class_weights, class_name, sum of class names and product of class weights and sum of individual classes
 temp_weights = list(x)
-temp_sample_weights = list(x2)
+# temp_sample_weights = list(x2)
 custom_weights = list(pos_contribution)
-temp_class = list(df.class_name.unique())
-temp_sum = list(df.class_name.value_counts())
+temp_class = list(sorted(df.class_id.unique()))
+temp_class_name = disease
+temp_sum = list(df.class_id.value_counts()[temp_class])
 temp_weight_products = [temp_weights[i] * temp_sum[i] for i in range(len(temp_weights))]
 custom_weight_products = [custom_weights[i] * temp_sum[i] for i in range(len(custom_weights))]
+# array check
+print(f"temp_weights: {len(temp_weights)}")
+# print(f"sample_weights: {len(temp_sample_weights)}")
+print(f"custom_weights: {len(custom_weights)}")
+print(f"class_name: {len(df.class_name.unique())}")
+print(f"sum_of_class_names: {len(temp_sum)}")
 #build dataframe
 temp_dataframe = pd.DataFrame({'class_weights': temp_weights, 
-                                'sample_weights': temp_sample_weights,
+                                # 'sample_weights': temp_sample_weights,
                                 'custom_weights': custom_weights, 
                                 'class_name': temp_class, 
                                 'sum_of_class_names': temp_sum, 
@@ -125,6 +133,43 @@ temp_dataframe
     
     
     
+    
+    
+    
+# %% 
+def weigh_and_show(dataframe):
+  from sklearn.utils import compute_class_weight, compute_sample_weight
+  x  = compute_class_weight("balanced",sorted(dataframe.class_id.unique()),dataframe.class_id)
+
+  # show class weight
+  for i, proposed_weights in enumerate(x):
+      # print(f"{df.class_name.unique()[i]}: {x[i]}")
+      print('{:<25s}: {:<}'.format(disease[i], x[i]))
+      
+  # build dataframe with list of class_weights, class_name, sum of class names and product of class weights and sum of individual classes
+  temp_weights = list(x)
+  # temp_sample_weights = list(x2)
+  
+  temp_class = list(sorted(dataframe.class_id.unique()))
+  temp_class_name = disease
+  temp_sum = list(dataframe.class_id.value_counts()[temp_class])
+  temp_weight_products = [temp_weights[i] * temp_sum[i] for i in range(len(temp_weights))]
+  
+  # array check
+  print(f"temp_weights: {len(temp_weights)}")
+  # print(f"sample_weights: {len(temp_sample_weights)}")
+
+  print(f"class_name: {len(df.class_name.unique())}")
+  print(f"sum_of_class_names: {len(temp_sum)}")
+  #build dataframe
+  temp_dataframe = pd.DataFrame({'class_weights': temp_weights, 
+                                  # 'sample_weights': temp_sample_weights,
+                                 
+                                  'class_name': temp_class, 
+                                  'sum_of_class_names': temp_sum, 
+                                  'weight_products': temp_weight_products,})
+                                 
+  return temp_dataframe
 # %%
 from sklearn.model_selection import train_test_split
 X, y = df.imagepath, df.class_id
@@ -289,7 +334,7 @@ def fast_random_sampling(df, class_id, n):
 
     return np.random.default_rng().choice(df_class.index, n, replace=False).tolist()
 # %%
-train_df, test_df= custom_split(test, df)
+train_df, test_df = custom_split(test, df)
 
 # %%
 train1, validate_and_test = get_n_samples(df, test)
