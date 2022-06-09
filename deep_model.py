@@ -4,16 +4,23 @@ try:
   %load_ext autotime
 except:
   print("Console warning-- Autotime is jupyter platform specific")
+# %%
+from comet_ml import Experiment
+import math
+from pyforest import *
+lazy_imports()
+
+# %%
+
 
 
 # %%
 
 import os
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from comet_ml import Experiment
 import icecream as ic
 from IPython.display import  display
 from torch.utils.data import DataLoader, Dataset, random_split
@@ -24,7 +31,7 @@ import torch.nn.functional as F
 from torch.nn import init
 from pydicom import dcmread
 
-
+# torch.manual_seed(45)
 torch.cuda._initialized = True
 
 # %%
@@ -32,87 +39,7 @@ torch.cuda._initialized = True
 experiment = Experiment(api_key="xleFjfKO3kcwc56tglgC1d3zU",
                         project_name="Chest Xray",log_code=True)
 # %%
-import pandas as pd 
-df = pd.read_csv('/media/gyasis/Drive 2/Data/vinbigdata/train.csv')
-df.head(10)
-
-# %%
-df = df[['image_id', 'class_name','class_id']]
-torch.cuda.empty_cache() 
-# %%
-def build_path(x):
-    path_ = '/media/gyasis/Drive 2/Data/vinbigdata/train/'
-    filetype = '.dicom'
-    x = (path_+x+filetype)
-    return x
-
-# %%
 import os.path
-
-# %%
-df['imagepath'] = df['image_id'].apply(lambda x: build_path(x))
-df = df[['imagepath','class_name','class_id']]
-df.head()
-
-# %% 
-pd.get_dummies(df['class_name'])
-df1 = pd.get_dummies(df['class_id'].astype(str))
-# %%
-#mapping for later use
-disease= ["Aortic enlargement"
-,"Atelectasis"
-,"Calcification"
-,"Cardiomegaly"
-,"Consolidation"
-,"ILD"
-,"Infiltration"
-,"Lung Opacity"
-,"Nodule/Mass"
-,"Other lesion"
-,"Pleural effusion"
-,"Pleural thickening"
-,"Pneumothorax"
-,"Pulmonary fibrosis"
-,"No_finding"]
-
-#map df.class_id to disease
-# df['class_id_test'] = df['class_id'].map(lambda x: disease[x])
-df.head()
-df1.columns = df1.columns.astype(int).map(lambda x: disease[x])
-
-s_array = np.array(df1)
-# %%
-def get_class_frequencies():
-  positive_freq = s_array.sum(axis=0) / s_array.shape[0]
-  negative_freq = np.ones(positive_freq.shape) - positive_freq
-  return positive_freq, negative_freq
-
-p,n = get_class_frequencies()
-# %%
-data = pd.DataFrame({"Class": df1.columns, "Label": "Positive", "Value": p})
-data = data.append([{"Class": df1.columns[l], "Label": "Negative", "Value": v} for l, v in enumerate(n)], ignore_index=True)
-plt.xticks(rotation=90)
-f = sns.barplot(x="Class", y="Value",hue="Label", data=data)
-plt.savefig("skewness.png")
-experiment.log_image(image_data = 'skewness.png')
-# %%
-pos_weights = n
-neg_weights = p
-pos_contribution = p * pos_weights
-neg_contribution = n * neg_weights
-print(p)
-print(n)
-print("Weight to be added:  ",pos_contribution)
-
-
-# %%
-
-data = pd.DataFrame({"Class": df1.columns, "Label": "Positive", "Value": pos_contribution})
-data = data.append([{"Class": df1.columns[l], "Label": "Negative", "Value": v} for l, v in enumerate(neg_contribution)], ignore_index=True)
-plt.xticks(rotation=90)
-g = sns.barplot(x="Class", y="Value",hue="Label", data=data)
-plt.savefig("Balanced.png")
-experiment.log_image(image_data = "Balanced.png")
 # %%
 import torchvision
 from torchvision import transforms
@@ -149,7 +76,7 @@ W_o_ten_transform = A.Compose(
                        A.HorizontalFlip(p=0.5),
                        A.OneOf([
                             A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.25),
-                            A.RandomBrightnessContrast(p=0.1, contrast_limit=0.05, brightness_limit=0.05,),
+                            # A.RandomBrightnessContrast(p=0.1, contrast_limit=0.05, brightness_limit=0.05,),
                             A.InvertImg(p=0.02),
                        ]),
                        A.OneOf([
@@ -198,13 +125,13 @@ class AlbumentationsDataset(Dataset):
         return self.data_len
     
     def __getitem__(self, index):
-        
         ds = dcmread(self.imagearray[index])
         class_id = self.df.loc[index, 'class_id']
         arr = ds.pixel_array
         arr = np.stack((arr,)*3, axis=-1)
         arr = transform(image = arr)["image"]
         return arr, class_id
+      
 class VisualDataset(Dataset):
     def __init__(self, dataset, transform=transform):
         self.df = dataset
@@ -213,44 +140,48 @@ class VisualDataset(Dataset):
         self.transform = transform
         self.data_len = len(dataset.index)
         
+        
     def __len__(self):
         return self.data_len
     
     def __getitem__(self, index):
-        
         ds = dcmread(self.imagearray[index])
         class_id = self.df.loc[index, 'class_id']
         arr = ds.pixel_array
         arr = np.stack((arr,)*3, axis=-1)
         arr = W_o_ten_transform(image = arr)["image"]
-        return arr, class_id
+        # print(f"this is the index {index}") 
+        # print(f"this is the the df index {self.df.index[index]}")
+        return arr, class_id, 
     
 
 # %%
-ChestData = MyDataset(df, transform=None)
+ChestData_Valid = MyDataset(valid, transform=None)
+ChestData_Test = MyDataset(test, transform=None)
 
 # train_dataloader = DataLoader(train_ds, batch_size=128)
 #  %%
-ChestData_Aug = AlbumentationsDataset(df, transform=transform)
-ChestData_Visual = VisualDataset(df, transform=transform)
+ChestData_Aug_Train = AlbumentationsDataset(train, transform=transform)
+ChestData_Visual = VisualDataset(train, transform=transform)
 # %%
 set_batchsize = 128
 # %%
 from torch.utils.data import DataLoader, Dataset, random_split
-num_items = len(ChestData_Aug)
-num_train = round(num_items * 0.7)
-num_val = num_items - num_train
-train_ds, val_ds = random_split(ChestData_Aug, [num_train, num_val])
-train_dataloader = DataLoader(train_ds, batch_size=set_batchsize, num_workers=4, pin_memory=True, shuffle=True)
-val_dataloader = DataLoader(val_ds,batch_size=set_batchsize, num_workers=4, pin_memory=True,shuffle=False)
+# num_items = len(ChestData_Aug)
+# num_train = round(num_items * 0.7)
+# num_val = num_items - num_train
+# train_ds, val_ds = random_split(ChestData_Aug, [num_train, num_val])
+train_dataloader = DataLoader(ChestData_Aug_Train, batch_size=set_batchsize, num_workers=4, pin_memory=True, shuffle=True)
+val_dataloader = DataLoader(ChestData_Valid,batch_size=set_batchsize, num_workers=4, pin_memory=True,shuffle=False)
 
 
 # %%
 from torchvision import models 
 import torch
 model = models.resnet18(pretrained=True)
-
 print(model)
+
+
 # %%
 from torch import nn as nn
 num_classes = 15
@@ -260,41 +191,51 @@ device = torch.device("cuda:0")
 model= model.to(device)
 
 # %%
-df.class_id.unique()
-
-# %%
-# torch.manual_seed(17)
-
-
-
-# %%
 import copy
 
+# %%
+# get third element of  each tuple in a list of tuples
+def get_third_element(tup):
+      
+    return tup[::2]
 
-def visualize_augmentations(dataset, idx=12,iterate='random', samples=9, cols=3):
+# %%
+def visualize_augmentations(dataset, idx=12,iterate='random', samples=2, cols=2, save=False):
     dataset = copy.deepcopy(dataset)
     dataset.transform = transform
     rows = samples // cols
     figure, ax = plt.subplots(nrows=rows, ncols=cols, figsize=(12, 12))
-    
-    
+   
+ 
     for i in range(samples):
-        rando = random.randint(0,len(dataset)-1)
-        if (iterate=='random'):
-            image, _ = dataset[rando]
-           
-            ax.ravel()[i].imshow(image[:,:,0],cmap='gray')
-            ax.ravel()[i].set_axis_off()
-        else:
-            image, _ = dataset[i]
-            ax.ravel()[i].imshow(image[0,:,:],cmap='gray')
-            ax.ravel()[i].set_axis_off()
-            
-    plt.tight_layout()
-    filename = 'augmented_images_' + str(rando) + '.png'
-    plt.savefig(filename)
-    experiment.log_image(image_data = filename) 
-    plt.show()
+        # rando = random.randint(0,len(dataset)-1)
+        rando = np.random.randint(0,len(dataset)-1)
+        print(rando)
+        
+        while True:
+          try:
+            if (iterate=='random'):
+                image, _ = dataset[rando]
+                ax.ravel()[i].imshow(image[:,:,0],cmap='gray')
+                ax.ravel()[i].set_axis_off()
+                break
+            else:
+                image, _ = dataset[i]
+                ax.ravel()[i].imshow(image[0,:,:],cmap='gray')
+                ax.ravel()[i].set_axis_off()
+                break
+              
+          except:
+              print("possible index error")
+              rando = np.random.randint(0,len(dataset)-1)
+              
+              
+    if save == True:
+      plt.tight_layout()
+      filename = 'augmented_images_' + str(rando) + '.png'
+      plt.savefig(filename)
+      experiment.log_image(image_data = filename) 
+      plt.show()
     
     
 # %%
@@ -302,20 +243,40 @@ for t in range(9):
     visualize_augmentations(ChestData_Visual, idx=5, samples=9, cols=3)   
 
 # %%
-for t in range(9):
-    visualize_augmentations(ChestData, idx=5, samples=9,iterate='iterate', cols=3)
+# for t in range(9):
+#     visualize_augmentations(ChestData_Valid, idx=5, samples=9,iterate='iterate', cols=3)
+
 # # %%
-# random.seed(42)
-# visualize_augmentations(ChestData)
+# for t in range(9):
+#     visualize_augmentations(ChestData_Aug_Train, idx=5, samples=9, cols=3)   
+
+
+def save_model(model, optimizer, scheduler, model_name, num_epochs, loss, best_loss,
+               save_dir='./models/'):
+  model_dir = os.path.join(save_dir, model_name)
+  if not os.path.exists(model_dir):
+    os.makedirs(model_dir)
+  model_path = os.path.join(model_dir, 'model.pt')
+  optimizer_path = os.path.join(model_dir, 'optimizer.pt')
+  scheduler_path = os.path.join(model_dir, 'scheduler.pt')
+  loss_path = os.path.join(model_dir, 'loss.pt')
+  best_loss_path = os.path.join(model_dir, 'best_loss.pt')
+  torch.save(model.state_dict(), model_path)
+  torch.save(optimizer.state_dict(), optimizer_path)
+  torch.save(scheduler.state_dict(), scheduler_path)
+  torch.save(loss, loss_path)
+  torch.save(best_loss, best_loss_path)
+  print('Saved model to: {}'.format(model_path))
 
 # %%
 def training(model, train_dataloader, num_epochs):
-    optimizer_name = torch.optim.SGD(model.parameters(), lr=0.01)
+    optimizer_name = torch.optim.SGD(model.parameters(), lr=0.001)
     # criterion = nn.CrossEntropyLoss()
-    criterion = nn.CrossEntropyLoss(weight=torch.tensor(pos_contribution).type(torch.FloatTensor).to(device))
+    weight = torch.FloatTensor(weights).to(device)
+    criterion = nn.CrossEntropyLoss(weight=weight)
     optimizer = optimizer_name
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,
-                                                    max_lr=0.01,
+                                                    max_lr=0.001,
                                                     steps_per_epoch=int(len(train_dataloader)),
                                                     epochs=num_epochs,
                                                     anneal_strategy='linear')
@@ -326,7 +287,7 @@ def training(model, train_dataloader, num_epochs):
         total_prediction = 0
         
         
-        for i, data, in enumerate(tqdm(train_dataloader)):
+        for i, data in enumerate(tqdm(train_dataloader)):
             inputs = data[0].float().to(device)
             labels = data[1].to(device)
             optimizer.zero_grad()
@@ -355,8 +316,16 @@ def training(model, train_dataloader, num_epochs):
         acc = correct_prediction/total_prediction
         print(f'Epoch: {epoch}, Loss: {avg_loss:.2f}, Accuracy: {acc:.2f}')
         experiment.log_metric("Accuracy", acc, epoch)
+        save_model(model, optimizer, scheduler, 'chest_model', num_epochs, avg_loss, acc)
         
-num_epochs = 6 
+num_epochs = 2 
+
+# %%
+
+# %%
+#save trained model with hyperparameters
+
+
 
 training(model, train_dataloader, num_epochs)
 experiment.end()
@@ -397,8 +366,10 @@ def inference (model, x):
   print(f'Accuracy: {acc:.2f}, Total items: {total_prediction}')
 
 # Run inference on trained model with the validation set
-
 inference(model, val_dataloader)
+
+
+
 # %%
 import copy
 def visualize_augmentations(dataset, idx=12, samples=9, cols=3):
@@ -417,24 +388,16 @@ def visualize_augmentations(dataset, idx=12, samples=9, cols=3):
 random.seed(42)
 visualize_augmentations(ChestData)
 # %%
-ds = dcmread(df.imagepath[5])
-arr = ds.pixel_array
-# arr = arr.astype('float')
-arr = np.stack((arr,)*3, axis=-1)
-
-print(arr.shape)
-print(arr.dtype)
-
-transformed = transform(image = arr)["image"]
+# transformed = transform(image = arr)["image"]
 
 def visualize(image):
     plt.figure(figsize=(10, 10))
     plt.axis('off')
     plt.imshow(image)
     
-visualize(transformed)
+# visualize(transformed)
 
-def training(model, train_dataloader, num_epochs):
+def training(model, train_dataloader, num_epochs, save ='no'):
     optimizer_name = torch.optim.SGD(model.parameters(), lr=0.01)
     criterion = nn.CrossEntropyLoss()
     optimizer = optimizer_name
@@ -466,40 +429,161 @@ def training(model, train_dataloader, num_epochs):
         avg_loss = running_loss / num_batches
         acc = correct_prediction/total_prediction
        
-num_epochs = 6 
-
+num_epochs = 3 
 training(model, train_dataloader, num_epochs)
 
+# %%
+# %%
+import optuna
 
 
+def objective(trial):
+  
+  # Create the model and put it on the GPU if available
+  from torch.utils.tensorboard import SummaryWriter
+  writer = SummaryWriter()
+  torch.cuda.empty_cache() 
+  model = models.resnet18(pretrained=True)
+  num_ftrs = model.fc.in_features
+  model.fc = nn.Linear(num_ftrs, num_classes)
+  
+  model = model.to(device)
 
+  # Define the hyperparameters
+  weight = torch.FloatTensor(weights).to(device)
+  criterion = nn.CrossEntropyLoss(weight=weight)
+  lr = trial.suggest_loguniform('lr', 1e-5, 1e-1)
+  optimizer_name = trial.suggest_categorical('optimizer', ['Adam', 'AdamW','RMSprop', 'Adagrad'])
+  num_epochs = trial.suggest_int('num_epochs', 5, 10 )
+  optimizer = getattr(torch.optim, optimizer_name)(model.parameters(),lr=lr)
+  
+  scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.001, cycle_momentum=False,
+                                                steps_per_epoch=int(len(train_dataloader)),
+                                                epochs=num_epochs,
+                                                anneal_strategy='linear')
+  
+  # weight_decay = trial.suggest_loguniform('weight_decay', 1e-10, 1e-3)
+  
+ 
+  # Repeat for each epoch
+  for epoch in tqdm(range(num_epochs)):
+    running_loss = 0.0
+    correct_prediction = 0
+    total_prediction = 0
 
-# this function takes a datset, list of columns to augment, by a factor, and a savepath
-# it will augment the dataset by the factor, and save the augmented images to the savepath
-# then returns the augmented dataset as a dataframe
-
-def augment_data(dataset, listoftoaugmentclass, numofaugmentation ,savepath):
-    path = []
-    class = []
-    for i in listoftoaugmentclass:
-        print(i)
-        for j in random.sample(dataset[j][1], len(dataset)):
-            if dataset[j][1] == i:
-                print(dataset[j][1])
-                ds = dcmread(dataset[j][0])
-                arr = ds.pixel_array
-                arr = arr.astype('float')
-                arr = np.stack((arr,)*3, axis=-1)
-                transformed = transform(image = arr)["image"]
-                savepath = savepath + str(i) + '/'
-                if not os.path.exists(savepath):
-                    os.makedirs(savepath)
-                plt.imsave(savepath + str(j) + '.png', transformed)
-                path.append(savepath + str(j) + '.png')
-                class.append(i)
+    # Repeat for each batch in the training set
+    for i, data in enumerate(tqdm(train_dataloader)):
+        # Get the input features and target labels, and put them on the GPU
+        inputs, labels = data[0].to(device), data[1].to(device)
         
-    df = pd.DataFrame(list(zip(path,class)),columns=['imagepath','class'])
-    return df
+        # Normalize the inputs
+        inputs_m, inputs_s = inputs.mean(), inputs.std()
+        inputs = (inputs - inputs_m) / inputs_s
 
-# for loop in range of lenth of list but random interation
-def loop_random(len(df1)):
+        # Zero the parameter gradients
+        optimizer.zero_grad()
+
+        # forward + backward + optimize
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        scheduler.step()
+
+        # Keep stats for Loss and Accuracy
+        running_loss += loss.item()
+        
+        # Get the predicted class with the highest score
+        _, prediction = torch.max(outputs,1)
+        # Count of predictions that matched the target label
+        correct_prediction += (prediction == labels).sum().item()
+        total_prediction += prediction.shape[0]
+        running_acc = correct_prediction/total_prediction
+        writer.add_scalar("Train/train_accuracy",running_acc, epoch)
+        writer.add_scalar("Loss/train",loss, epoch)
+        experiment.log_metric("Train/train_accuracy",running_acc, epoch)
+        experiment.log_metric("Loss/train",loss, epoch)
+        writer.flush()
+        
+        if i % 100 == 0:    # print every 10 mini-batches
+          try:
+            print('[%d, %5d] loss: %.3f  acc: %.2f' % (epoch + 1, i + 1, running_loss / i, running_acc))
+          except ZeroDivisionError:
+            print('division by zero')
+            
+    # Print stats at the end of the epoch
+    num_batches = len(train_dataloader)
+    avg_loss = running_loss / num_batches
+    acc = correct_prediction/total_prediction
+    print(f'Epoch: {epoch}, Loss: {avg_loss:.2f}, Accuracy: {acc:.2f}')
+    experiment.log_metric("Accuracy", acc, epoch)
+    writer.add_scalar("Train/epoch",epoch, epoch)
+    writer.add_scalar("Train/loss",avg_loss, epoch)
+    writer.add_scalar("Train/train_accuracy",acc, epoch)
+    writer.flush()
+    print('----------------------------------------------------------------')
+    print('Pruning?')
+    trial.report(acc, epoch)
+    if trial.should_prune():
+      raise optuna.exceptions.TrialPruned()
+    print('----------------------------------------------------------------')
+ 
+  return acc
+
+sampler = optuna.samplers.TPESampler()
+study = optuna.create_study(sampler=optuna.samplers.TPESampler(), direction='maximize', pruner=optuna.pruners.PercentilePruner(n_startup_trials=5, n_warmup_steps=2, percentile=25.0))
+study.optimize(objective, n_trials=10)
+print("\n++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
+print("Study statistics: ")
+print("  Number of finished trials: ", len(study.trials))
+
+print("Best trial:")
+trial = study.best_trial
+
+print("  Trial number: ", trial.number)
+print("  Loss (trial value): ", trial.value)
+
+print("  Params: ")
+for key, value in trial.params.items():
+    print("    {}: {}".format(key, value))  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ # %%
+
+#save trained model with hyperparameters
+def save_model(model, optimizer, scheduler, model_name, epochs, loss, best_loss,
+               save_dir='./models/'):
+  model_dir = os.path.join(save_dir, model_name)
+  if not os.path.exists(model_dir):
+    os.makedirs(model_dir)
+  model_path = os.path.join(model_dir, 'model.pt')
+  optimizer_path = os.path.join(model_dir, 'optimizer.pt')
+  scheduler_path = os.path.join(model_dir, 'scheduler.pt')
+  loss_path = os.path.join(model_dir, 'loss.pt')
+  best_loss_path = os.path.join(model_dir, 'best_loss.pt')
+  torch.save(model.state_dict(), model_path)
+  torch.save(optimizer.state_dict(), optimizer_path)
+  torch.save(scheduler.state_dict(), scheduler_path)
+  torch.save(loss, loss_path)
+  torch.save(best_loss, best_loss_path)
+  print('Saved model to: {}'.format(model_path))
+
+
+
+def load_model(model, ):
+
+ 

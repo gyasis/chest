@@ -369,7 +369,7 @@ g1.set_title("Train set")
 
 # %% 
 def get_class_frequencies(dataframe,target):
-  try:
+      try:
     dataframe = pd.get_dummies(dataframe[target].astype(str))
   except:
     dataframe = pd.get_dummies(dataframe[target])

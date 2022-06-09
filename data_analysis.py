@@ -6,6 +6,7 @@
 #   print("Console warning-- Autotime is jupyter platform specific")
 
 # %%
+from comet_ml import Experiment
 import math
 from pyforest import *
 lazy_imports()
@@ -142,6 +143,7 @@ def prepare_class_split(dataframe, target="class_name", p_split=0.30, test_targe
   
   
   for lable in class_list:
+    print('-----------------------------------------------------' + '\n')
     percent_split = class_counts[lable] / df_len
     proposed_percent_split = class_counts[lable] / df_split
     total.append(class_counts[lable])
@@ -165,7 +167,7 @@ def prepare_class_split(dataframe, target="class_name", p_split=0.30, test_targe
         print("Class {} is {} and the proposed split is {}".format(lable,class_counts[lable],proposed_split))
         print("Both augmentation and weights may be necessary!!")
       outcomes.append("Weights/Augment/Split!!")
-  
+    print('-----------------------------------------------------' + '\n'+'\n')
   outcomes_df = pd.DataFrame()
   outcomes_df["Class"] = class_list
   outcomes_df["Split"] = math.floor(proposed_split)
@@ -297,8 +299,11 @@ weights = get_class_frequencies(df, "class_name")
 X, y = test_df.imagepath, test_df.class_id
 X_valid, X_test, y_valid, y_test = train_test_split(X, y, test_size=0.5, random_state=42, stratify=y)
 # %%
-Valid_df = pd.concat([X_valid, y_valid], axis=1, join='inner')
-Test_df = pd.concat([X_test, y_test], axis=1, join='inner')
-Train_df = train_df[['imagepath', 'class_id']]
-# %%
-#run python file and get variables for train and test
+valid = pd.concat([X_valid, y_valid], axis=1, join='inner')
+#reset index 
+valid = valid.reset_index(drop=True)
+test = pd.concat([X_test, y_test], axis=1, join='inner')
+test = test.reset_index(drop=True)
+train = train_df[['imagepath', 'class_id']]
+train = train.reset_index(drop=True)
+ # %%
