@@ -192,7 +192,7 @@ model= model.to(device)
 
 # %%
 import copy
-
+import matplotlib.pyplot as plt
 # %%
 # get third element of  each tuple in a list of tuples
 def get_third_element(tup):
@@ -210,7 +210,7 @@ def visualize_augmentations(dataset, idx=12,iterate='random', samples=2, cols=2,
     for i in range(samples):
         # rando = random.randint(0,len(dataset)-1)
         rando = np.random.randint(0,len(dataset)-1)
-        print(rando)
+        # print(rando)
         
         while True:
           try:
@@ -239,8 +239,11 @@ def visualize_augmentations(dataset, idx=12,iterate='random', samples=2, cols=2,
     
     
 # %%
+
+
+
 for t in range(9):
-    visualize_augmentations(ChestData_Visual, idx=5, samples=9, cols=3)   
+    visualize_augmentations(ChestData_Visual, idx=5, samples=9, cols=3, save=False)   
 
 # %%
 # for t in range(9):
@@ -256,6 +259,13 @@ def save_model(model, optimizer, scheduler, model_name, num_epochs, loss, best_l
   model_dir = os.path.join(save_dir, model_name)
   if not os.path.exists(model_dir):
     os.makedirs(model_dir)
+    
+  #fix saving error when model is on cpu, here we make a copy to cpu to save
+  device2 = torch.device("cpu")
+#   transfer_model = model.to(device2)
+#   transfer_optimizer = optimizer.to(device2)
+#   transfer_scheduler = scheduler.to(device2)
+  
   model_path = os.path.join(model_dir, 'model.pt')
   optimizer_path = os.path.join(model_dir, 'optimizer.pt')
   scheduler_path = os.path.join(model_dir, 'scheduler.pt')
@@ -266,7 +276,7 @@ def save_model(model, optimizer, scheduler, model_name, num_epochs, loss, best_l
   torch.save(scheduler.state_dict(), scheduler_path)
   torch.save(loss, loss_path)
   torch.save(best_loss, best_loss_path)
-  print('Saved model to: {}'.format(model_path))
+  print('Checkpoint!/nSaved model to: {}'.format(model_path))
 
 # %%
 def training(model, train_dataloader, num_epochs):
@@ -295,7 +305,26 @@ def training(model, train_dataloader, num_epochs):
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
-            scheduler.step()
+            
+            
+            
+            # print(optimizer.state_dict())
+            
+            # opt_dict = optimizer.state_dict()
+            
+            
+            # scheduler.step()
+            # print(scheduler.state_dict())
+            
+            # sched_dict = scheduler.state_dict()
+            # mod_dict = model.state_dict()
+            
+            # optwrite = open("optimizer.pickle", "wb")
+            # schedwrite = open("scheduler.pickle", "wb")
+            # modwrite = open("model.pickle", "wb")
+            
+            # print("files are saved/nProgram will now end")
+            # exit()
             running_loss += loss.item()
             _, prediction = torch.max(outputs, 1)
             
@@ -310,6 +339,7 @@ def training(model, train_dataloader, num_epochs):
             if i > 2:
                 if i % 20 == 0:
                     print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / i))
+                    
                 
         num_batches = len(train_dataloader)
         avg_loss = running_loss / num_batches
@@ -587,3 +617,18 @@ def save_model(model, optimizer, scheduler, model_name, epochs, loss, best_loss,
 def load_model(model, ):
 
  
+ 
+ 
+ 
+# %%
+ 
+#  opt_load = torch.load('./models/model_1/optimizer.pt')
+
+opt_load = open("optimizer.pickle", "rb")
+sched_load = open("scheduler.pickle", "rb")
+model_load = open("model.pickle", "rb")
+
+opt = pickle.load(opt_load)
+sched = pickle.load(sched_load)
+mod = pickle.load(model_load)
+# %%

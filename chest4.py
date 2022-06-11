@@ -762,6 +762,8 @@ def visualize(image):
     
 visualize(transformed)
 
+# %%
+
 def training(model, train_dataloader, num_epochs):
     optimizer_name = torch.optim.SGD(model.parameters(), lr=0.01)
     criterion = nn.CrossEntropyLoss()
@@ -797,7 +799,7 @@ def training(model, train_dataloader, num_epochs):
 num_epochs = 6 
 training(model, train_dataloader, num_epochs)
 
-
+# %%
 
 
 
