@@ -51,7 +51,7 @@ c_transform = nn.Sequential(transforms.Resize([256,]),
                             transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)))
 ten = torchvision.transforms.ToTensor()
 
-scripted_transforms = torch.jit.script(c_transform)
+# scripted_transforms = torch.jit.script(c_transform)
 # %%
 transform = A.Compose(
     [A.Resize(width=256,height=256, always_apply=True),
@@ -106,7 +106,7 @@ class MyDataset(Dataset):
         class_id = self.df.loc[index, 'class_id']
         arr = ten(arr)
         arr = arr.expand(3, -1,-1)
-        arr = scripted_transforms(arr)
+        # arr = scripted_transforms(arr)
         
         return arr, class_id
         
@@ -164,7 +164,7 @@ ChestData_Test = MyDataset(test, transform=None)
 ChestData_Aug_Train = AlbumentationsDataset(train, transform=transform)
 ChestData_Visual = VisualDataset(train, transform=transform)
 # %%
-set_batchsize = 128
+set_batchsize = 512
 # %%
 from torch.utils.data import DataLoader, Dataset, random_split
 # num_items = len(ChestData_Aug)
@@ -182,13 +182,18 @@ model = models.resnet18(pretrained=True)
 print(model)
 
 
+# additions 
+# %%
+
 # %%
 from torch import nn as nn
 num_classes = 15
 num_ftrs = model.fc.in_features
 model.fc = nn.Linear(num_ftrs, num_classes)
 device = torch.device("cuda:0")
+model = nn.DataParallel(model, device_ids = [0,1])
 model= model.to(device)
+
 
 # %%
 import copy
@@ -253,29 +258,47 @@ for t in range(9):
 # for t in range(9):
 #     visualize_augmentations(ChestData_Aug_Train, idx=5, samples=9, cols=3)   
 
+def tensor_to_cpu(x):
+    for param in x:
+        if torch.is_tensor(x[param]) == True:
+            print("found tensor!")
+            x[param] = x[param].cpu()
+    return x
 
 def save_model(model, optimizer, scheduler, model_name, num_epochs, loss, best_loss,
                save_dir='./models/'):
   model_dir = os.path.join(save_dir, model_name)
   if not os.path.exists(model_dir):
     os.makedirs(model_dir)
-    
-  #fix saving error when model is on cpu, here we make a copy to cpu to save
-  device2 = torch.device("cpu")
-#   transfer_model = model.to(device2)
-#   transfer_optimizer = optimizer.to(device2)
-#   transfer_scheduler = scheduler.to(device2)
+  
+    #   fix saving error when model is on cpu, here we make a copy to cpu to save
+    #   device2 = torch.device("cpu")
+    #   transfer_model = model.to(device2)
+    #   transfer_optimizer = optimizer.to(device2)
+    #   transfer_scheduler = scheduler.to(device2)
   
   model_path = os.path.join(model_dir, 'model.pt')
   optimizer_path = os.path.join(model_dir, 'optimizer.pt')
   scheduler_path = os.path.join(model_dir, 'scheduler.pt')
   loss_path = os.path.join(model_dir, 'loss.pt')
   best_loss_path = os.path.join(model_dir, 'best_loss.pt')
-  torch.save(model.state_dict(), model_path)
-  torch.save(optimizer.state_dict(), optimizer_path)
-  torch.save(scheduler.state_dict(), scheduler_path)
+  
+  #hopeful fix for save error : copy state_dicts and pull gpu tensors to cpu, and then save
+  opt_dict = tensor_to_cpu(optimizer.state_dict())
+  sched_dict = tensor_to_cpu(scheduler.state_dict())
+  mod_dict = tensor_to_cpu(model.state_dict())
+  
+  print(scheduler.state_dict())
+  print(sched_dict)
+
+  torch.save(mod_dict, model_path)
+  torch.save(opt_dict, optimizer_path)
+  torch.save(sched_dict, scheduler_path)
+  
   torch.save(loss, loss_path)
   torch.save(best_loss, best_loss_path)
+  
+  
   print('Checkpoint!/nSaved model to: {}'.format(model_path))
 
 # %%
@@ -305,19 +328,13 @@ def training(model, train_dataloader, num_epochs):
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
+            print(optimizer)
+            scheduler.step()
             
             
             
-            # print(optimizer.state_dict())
-            
-            # opt_dict = optimizer.state_dict()
-            
-            
-            # scheduler.step()
             # print(scheduler.state_dict())
             
-            # sched_dict = scheduler.state_dict()
-            # mod_dict = model.state_dict()
             
             # optwrite = open("optimizer.pickle", "wb")
             # schedwrite = open("scheduler.pickle", "wb")
@@ -350,7 +367,7 @@ def training(model, train_dataloader, num_epochs):
         
 num_epochs = 2 
 
-# %%
+
 
 # %%
 #save trained model with hyperparameters
@@ -472,7 +489,7 @@ def objective(trial):
   # Create the model and put it on the GPU if available
   from torch.utils.tensorboard import SummaryWriter
   writer = SummaryWriter()
-  torch.cuda.empty_cache() 
+  torch.cuda.   `       _cache() 
   model = models.resnet18(pretrained=True)
   num_ftrs = model.fc.in_features
   model.fc = nn.Linear(num_ftrs, num_classes)
@@ -631,4 +648,11 @@ model_load = open("model.pickle", "rb")
 opt = pickle.load(opt_load)
 sched = pickle.load(sched_load)
 mod = pickle.load(model_load)
+# %%
+def tensor_to_cpu(x):
+    for param in x:
+        if torch.is_tensor(x[param]) == True:
+            print("found tensor!")
+            x[param] = x[param].cpu()
+    return x
 # %%
