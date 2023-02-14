@@ -4,6 +4,22 @@ try:
   %load_ext autotime
 except:
   print("Console warning-- Autotime is jupyter platform specific")
+  
+  
+# %%
+
+# import subprocess
+# subprocess.call('data_analysis.py', shell=True)
+# %%
+try:
+    import os
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"  # specify which GPU(s) to be used
+    #     
+except:
+    import torch
+    print("Console warning-- Check Connected GPUS")
+    print(f"Your system sees {torch.cuda.device_count()} GPUs")
 # %%
 from comet_ml import Experiment
 import math
@@ -164,7 +180,7 @@ ChestData_Test = MyDataset(test, transform=None)
 ChestData_Aug_Train = AlbumentationsDataset(train, transform=transform)
 ChestData_Visual = VisualDataset(train, transform=transform)
 # %%
-set_batchsize = 512
+set_batchsize = 576
 # %%
 from torch.utils.data import DataLoader, Dataset, random_split
 # num_items = len(ChestData_Aug)
@@ -190,12 +206,12 @@ from torch import nn as nn
 num_classes = 15
 num_ftrs = model.fc.in_features
 model.fc = nn.Linear(num_ftrs, num_classes)
-device = torch.device("cuda:0")
-model = nn.DataParallel(model, device_ids = [0,1])
+device = torch.device("cuda:1")
+# model = nn.DataParallel(model, device_ids = [0,1])
 model= model.to(device)
 
 
-# %%
+        # %%
 import copy
 import matplotlib.pyplot as plt
 # %%
@@ -247,8 +263,8 @@ def visualize_augmentations(dataset, idx=12,iterate='random', samples=2, cols=2,
 
 
 
-for t in range(9):
-    visualize_augmentations(ChestData_Visual, idx=5, samples=9, cols=3, save=False)   
+# for t in range(9):
+#     visualize_augmentations(ChestData_Visual, idx=5, samples=9, cols=3, save=False)   
 
 # %%
 # for t in range(9):
@@ -265,11 +281,12 @@ def tensor_to_cpu(x):
             x[param] = x[param].cpu()
     return x
 
-def save_model(model, optimizer, scheduler, model_name, num_epochs, loss, best_loss,
+def save_model(model, optimizer, scheduler, model_name, epochs, loss, 
+            #    best_loss,
                save_dir='./models/'):
-  model_dir = os.path.join(save_dir, model_name)
-  if not os.path.exists(model_dir):
-    os.makedirs(model_dir)
+#   model_dir = os.path.join(save_dir, model_name)
+#   if not os.path.exists(model_dir):
+#     os.makedirs(model_dir)
   
     #   fix saving error when model is on cpu, here we make a copy to cpu to save
     #   device2 = torch.device("cpu")
@@ -277,29 +294,38 @@ def save_model(model, optimizer, scheduler, model_name, num_epochs, loss, best_l
     #   transfer_optimizer = optimizer.to(device2)
     #   transfer_scheduler = scheduler.to(device2)
   
-  model_path = os.path.join(model_dir, 'model.pt')
-  optimizer_path = os.path.join(model_dir, 'optimizer.pt')
-  scheduler_path = os.path.join(model_dir, 'scheduler.pt')
-  loss_path = os.path.join(model_dir, 'loss.pt')
-  best_loss_path = os.path.join(model_dir, 'best_loss.pt')
+#   model_path = os.path.join(model_dir, 'model.pt')
+#   optimizer_path = os.path.join(model_dir, 'optimizer.pt')
+#   scheduler_path = os.path.join(model_dir, 'scheduler.pt')
+#   loss_path = os.path.join(model_dir, 'loss.pt')
+#   best_loss_path = os.path.join(model_dir, 'best_loss.pt')
   
   #hopeful fix for save error : copy state_dicts and pull gpu tensors to cpu, and then save
-  opt_dict = tensor_to_cpu(optimizer.state_dict())
-  sched_dict = tensor_to_cpu(scheduler.state_dict())
-  mod_dict = tensor_to_cpu(model.state_dict())
+#   opt_dict = tensor_to_cpu(optimizer.state_dict())
+#   sched_dict = tensor_to_cpu(scheduler.state_dict())
+#   mod_dict = tensor_to_cpu(model.state_dict())
   
-  print(scheduler.state_dict())
-  print(sched_dict)
+#   print(scheduler.state_dict())
+#   print(sched_dict)
 
-  torch.save(mod_dict, model_path)
-  torch.save(opt_dict, optimizer_path)
-  torch.save(sched_dict, scheduler_path)
+#   torch.save(mod_dict, model_path)
+#   torch.save(opt_dict, optimizer_path)
+#   torch.save(sched_dict, scheduler_path)
   
-  torch.save(loss, loss_path)
-  torch.save(best_loss, best_loss_path)
+#   torch.save(loss, loss_path)
+#   torch.save(best_loss, best_loss_path)
+  
+#   print('Saved model to: {}'.format(model_dir))
+  PATH = './models/checkpoint.pt'
+  torch.save({ 'epoch': epochs,
+              'model_state_dict': model.state_dict(),
+              'optimizer_state_dict': optimizer.state_dict(),
+              'scheduler_state_dict': scheduler.state_dict(),
+              'loss': loss,}, PATH)
   
   
-  print('Checkpoint!/nSaved model to: {}'.format(model_path))
+  
+  print('Checkpoint!/nSaved model to: {}'.format(PATH))
 
 # %%
 def training(model, train_dataloader, num_epochs):
@@ -328,7 +354,7 @@ def training(model, train_dataloader, num_epochs):
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
-            print(optimizer)
+            # print(optimizer)
             scheduler.step()
             
             
@@ -354,16 +380,25 @@ def training(model, train_dataloader, num_epochs):
             except:
                 print('div by zero')
             if i > 2:
-                if i % 20 == 0:
+                if i % 5 == 0:
+                       
+                    
                     print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / i))
                     
+                    #debugging
+                    true_epoch = epoch + 1
+                    save_model(model, optimizer, scheduler, 'chest_model', true_epoch, running_loss, running_acc)
+                    
+                    
+
                 
         num_batches = len(train_dataloader)
         avg_loss = running_loss / num_batches
         acc = correct_prediction/total_prediction
         print(f'Epoch: {epoch}, Loss: {avg_loss:.2f}, Accuracy: {acc:.2f}')
         experiment.log_metric("Accuracy", acc, epoch)
-        save_model(model, optimizer, scheduler, 'chest_model', num_epochs, avg_loss, acc)
+       
+        save_model(model, optimizer, scheduler, 'chest_model', epoch, avg_loss, acc)
         
 num_epochs = 2 
 
@@ -371,9 +406,6 @@ num_epochs = 2
 
 # %%
 #save trained model with hyperparameters
-
-
-
 training(model, train_dataloader, num_epochs)
 experiment.end()
 # %%

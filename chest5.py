@@ -16,6 +16,9 @@ df = pd.read_csv('/media/gyasis/Drive 2/Data/vinbigdata/train.csv')
 df.head(10)
 
 
+
+
+
 disease= ["Aortic enlargement"
 ,"Atelectasis"
 ,"Calcification"
@@ -309,3 +312,4 @@ test = test.reset_index(drop=True)
 
 # for idx, (data, image) in enumerate(tester):
 #     print(idx)
+
